@@ -8,7 +8,7 @@ IMAGE_VERSION=$(shell git rev-parse --short=7 HEAD)
 IMAGE_URI=$(IMAGE_REGISTRY)/$(IMAGE_REPOSITORY)/$(IMAGE_NAME)
 IMAGE_URI_VERSION=$(IMAGE_URI):$(IMAGE_VERSION)
 IMAGE_URI_LATEST=$(IMAGE_URI):latest
-SHELL_CHECK_IMAGE="registry.access.redhat.com/ubi7/ubi:latest"
+SHELL_CHECK_IMAGE="registry.access.redhat.com/ubi8/ubi:8.9"
 PYTHON_IMAGE="registry.access.redhat.com/ubi8/python-36:latest"
 
 CONTAINER_ENGINE=$(shell command -v podman 2>/dev/null || command -v docker 2>/dev/null)
@@ -38,6 +38,11 @@ pyflakes:
 	$(CONTAINER_ENGINE) pull $(PYTHON_IMAGE)
 	$(CONTAINER_ENGINE) run -v $(shell pwd):/app --entrypoint=/bin/sh -w=/app/scripts $(PYTHON_IMAGE) -c "pip3 install pyflakes && find . -name '*.py' -print0 | xargs -0 -n1 pyflakes "
 
+.PHONY: registry-login
+registry-login:
+	@test "${QUAY_USER}" != "" && test "${QUAY_TOKEN}" != "" || (echo "QUAY_USER and QUAY_TOKEN must be defined" && exit 1)
+	@${CONTAINER_ENGINE} login -u="${QUAY_USER}" -p="${QUAY_TOKEN}" "$(IMAGE_REGISTRY)"
+
 .PHONY: push
 push:
 	$(CONTAINER_ENGINE) push $(IMAGE_URI_VERSION)
@@ -53,3 +58,6 @@ skopeo-push: build
 		--dest-creds "${QUAY_USER}:${QUAY_TOKEN}" \
 		"docker-daemon:${IMAGE_URI_LATEST}" \
 		"docker://${IMAGE_URI_LATEST}"
+
+.PHONY: build-and-push
+build-and-push: build registry-login push
